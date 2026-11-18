@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: schedule-exectv-svc
+spec:
+  selector:
+    app: schedule-exectv-svc
+  ports:
+    - port: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: schedule-exectv-svc
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: schedule-exectv-svc
+  template:
+    metadata:
+      labels:
+        app: schedule-exectv-svc
+    spec:
+      # REFERENSIKAN SECRET DOCKER HUB DI SINI
+      imagePullSecrets:
+      - name: dockerhub-secret
+      
+      containers:
+      - name: app
+        # Ganti dengan path image Anda di Docker Hub
+        image: pisckitama/circuit:v1.0 
+        imagePullPolicy: Always
+        env:
+        - name: SERVICE_CLASS
+          value: "eksekutif"
+        - name: DB_HOST
+          value: "shared-db"
+        - name: REDIS_HOST
+          value: "redis-eksekutif"
+        - name: MAX_DB_CONNECTIONS
+          value: "600"

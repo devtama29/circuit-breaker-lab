@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+data:
+  nginx.conf: |
+    events { worker_connections 1024; }
+    http {
+        # Upstream Ekonomi dengan Circuit Breaker
+        upstream economy_backend {
+            # Jika pod gagal merespons 3 kali berturut-turut, 
+            # putus rute selama 30 detik (fail_timeout)
+            server schedule-svc.default.svc.cluster.local:80 max_fails=3 fail_timeout=30s;
+        }
+
+        # Upstream Eksekutif (tanpa sirkuit pemutus yang agresif)
+        upstream executive_backend {
+            server schedule-exectv-svc.default.svc.cluster.local:80;
+        }
+
+        server {
+            listen 80;
+
+            # --- Konfigurasi Graceful Error untuk API (JSON) ---
+            # Menangkap error 502 (Bad Gateway) atau 504 (Timeout) saat sirkuit terputus
+            error_page 502 504 =503 /503.json;
+            location = /503.json {
+                default_type application/json;
+                return 503 '{"status": "error", "message": "Layanan pencarian jadwal ekonomi sedang penuh. Silakan coba beberapa saat lagi."}';
+            }
+
+            # --- Routing Layanan Ekonomi ---
+            location /api/ekonomi/ {
+                proxy_pass http://economy_backend/;
+                proxy_connect_timeout 3s; # Timeout cepat agar tidak membebani proxy
+                proxy_read_timeout 5s;
+                
+                # NGINX akan menghitung HTTP 500, 502, 503, dan 504 sebagai "kegagalan" untuk max_fails
+                proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
+            }
+
+            # --- Routing Layanan Eksekutif ---
+            location /api/eksekutif/ {
+                proxy_pass http://executive_backend/;
+                proxy_connect_timeout 10s;
+            }
+        }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: midsvc-proxy
+spec:
+  type: LoadBalancer # Mengekspos NGINX ke luar cluster
+  selector:
+    app: midsvc-proxy
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: midsvc-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: midsvc-proxy
+  template:
+    metadata:
+      labels:
+        app: midsvc-proxy
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        volumeMounts:
+        - name: nginx-config-volume
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+      volumes:
+      - name: nginx-config-volume
+        configMap:
+          name: nginx-config

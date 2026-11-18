@@ -1,0 +1,91 @@
+# --- Shared Database (Contoh PostgreSQL) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shared-db
+spec:
+  selector:
+    app: shared-db
+  ports:
+    - port: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shared-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shared-db
+  template:
+    metadata:
+      labels:
+        app: shared-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:14-alpine
+        env:
+        - name: POSTGRES_PASSWORD
+          value: "secret"
+
+# --- Redis 1 (Ekonomi) ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-ekonomi
+spec:
+  selector:
+    app: redis-ekonomi
+  ports:
+    - port: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-ekonomi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-ekonomi
+  template:
+    metadata:
+      labels:
+        app: redis-ekonomi
+    spec:
+      containers:
+      - name: redis
+        image: redis:alpine
+
+# --- Redis 2 (Eksekutif) ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-eksekutif
+spec:
+  selector:
+    app: redis-eksekutif
+  ports:
+    - port: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-eksekutif
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-eksekutif
+  template:
+    metadata:
+      labels:
+        app: redis-eksekutif
+    spec:
+      containers:
+      - name: redis
+        image: redis:alpine
